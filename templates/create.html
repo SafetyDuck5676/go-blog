@@ -5,10 +5,47 @@
 </head>
 <body>
     <h1>Create New Post</h1>
-    <form action="/post" method="POST">
+    <form id="create-post-form">
         <input type="text" name="title" placeholder="Title" required><br>
         <textarea name="content" placeholder="Content" required></textarea><br>
         <button type="submit">Create</button>
     </form>
+
+    <!-- JavaScript to handle form submission -->
+    <script>
+        document.querySelector('form').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const title = document.querySelector('input[name="title"]').value;
+            const content = document.querySelector('textarea[name="content"]').value;
+
+            if (title.length < 3) {
+                alert("Title must be at least 3 characters long.");
+                return;
+            }
+
+            if (content.length < 10) {
+                alert("Content must be at least 10 characters long.");
+                return;
+            }
+
+            const payload = JSON.stringify({ title, content });
+
+            fetch('/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Post created successfully!');
+                window.location.href = '/'; // Redirect back to the main page
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create post.');
+            });
+        });
+    </script>
 </body>
 </html>

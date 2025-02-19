@@ -6,11 +6,11 @@ import (
 	"go-blog/internal/database"
 	"go-blog/internal/database/models"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -24,12 +24,9 @@ func main() {
 	router.LoadHTMLGlob("templates/*.html")
 
 	// Routes
-	router.GET("/", getPosts)              // List all posts
-	router.GET("/create", showCreateForm)  // Show create form
-	router.POST("/post", createPost)       // Create a new post
-	router.GET("/post/:id", getPostByID)   // Get a post by ID
-	router.PUT("/post/:id", updatePost)    // Update a post
-	router.DELETE("/post/:id", deletePost) // Delete a post
+	router.GET("/", getPosts)             // List all posts
+	router.GET("/create", showCreateForm) // Show create form
+	router.POST("/post", createPost)      // Create a new post
 
 	// Start the server
 	port := os.Getenv("PORT")
@@ -39,10 +36,16 @@ func main() {
 	router.Run(":" + port)
 }
 
+func isValidJSONBody(body []byte) bool {
+	return len(body) > 0 && body[0] == '{'
+}
+
 // Get all posts
 func getPosts(c *gin.Context) {
 	var posts []models.Post
 	database.DB.Find(&posts)
+
+	// Render the index template with the list of posts
 	c.HTML(http.StatusOK, "index.html", posts)
 }
 
@@ -51,36 +54,50 @@ func showCreateForm(c *gin.Context) {
 	c.HTML(http.StatusOK, "create.html", nil)
 }
 
-// Create a new post
+func init() {
+	// Set logrus to output JSON-formatted logs
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+}
+
 func createPost(c *gin.Context) {
 	// Read the raw request body
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		logrus.WithError(err).Error("Failed to read request body")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
+
 	if len(bodyBytes) == 0 {
+		logrus.Warn("Empty request body")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Empty request body"})
 		return
 	}
-	log.Printf("Received request body: %s", string(bodyBytes))
+
+	if !isValidJSONBody(bodyBytes) {
+		logrus.Warn("Invalid JSON payload")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload"})
+		return
+	}
 
 	// Reset the body so it can be read again by ShouldBindJSON
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var post models.Post
 
-	// Bind and validate the JSON payload
 	if err := c.ShouldBindJSON(&post); err != nil {
-		log.Printf("Failed to bind JSON: %v", err)
+		logrus.WithError(err).Error("Failed to bind JSON")
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid JSON payload: %v", err)})
 		return
 	}
 
-	// Save the post to the database
-	database.DB.Create(&post)
+	if err := database.DB.Create(&post).Error; err != nil {
+		logrus.WithError(err).Error("Failed to save post")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save post"})
+		return
+	}
 
-	// Return the created post
+	logrus.Info("Post created successfully")
 	c.JSON(http.StatusCreated, post)
 }
 

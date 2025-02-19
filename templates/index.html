@@ -5,11 +5,17 @@
 </head>
 <body>
     <h1>Blog Posts</h1>
+
+    <!-- Display the list of posts -->
     <ul>
         {{ range . }}
-            <li><a href="/post/{{ .ID }}">{{ .Title }}</a></li>
+            <li>
+                <strong>{{ .Title }}</strong>: {{ .Content }}
+            </li>
         {{ end }}
     </ul>
+
+    <!-- Link to create a new post -->
     <a href="/create">Create New Post</a>
 </body>
 </html>
